@@ -1,0 +1,13 @@
+{
+    "name": "igrik/test",
+    "type": "project",
+    "license": "MIT",
+    "minimum-stability": "stable",
+    "require": {
+        "amphp/websocket-server": "^2.0",
+        "amphp/http-server-router": "^1.0",
+        "amphp/http-server-static-content": "^1.0",
+        "amphp/log": "^1.2",
+        "ext-posix": "*"
+    }
+}

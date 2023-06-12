@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Test</title>
+    <script type="text/javascript" src="/js/WebSocketClient.js"></script>
+    <script type="text/javascript" src="/js/PubSubPriority.js"></script>
+    <script type="text/javascript" src="/js/script.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        form {
+            padding: 10px;
+        }
+
+        form div {
+            margin-bottom: 5px;
+        }
+
+        .channel-blocks {
+            width: 100%;
+            display: inline-grid;
+            padding: 10px;
+        }
+
+        .channel-blocks .channel-box {
+            padding: 10px;
+            margin-bottom: 5px;
+            display: flex;
+        }
+
+        .channel-blocks .channel-box .title {
+            width: 18%;
+        }
+
+        .channel-blocks .channel-box .receive-msg {
+            width: 82%;
+        }
+
+        .channel-blocks .channel-box .title span {
+            display: block;
+            font-family: monospace;
+            font-size: 15px;
+            font-weight: bold;
+        }
+
+        @keyframes append-animate {
+            from {
+                transform: scale(0);
+                opacity: 0;
+            }
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .channel-blocks .channel-box .receive-msg .receive {
+            display: inline-flex;
+            width: 15px;
+            height: 15px;
+            background-color: white;
+            margin: 2px;
+            border: 1px dashed gray;
+            animation: append-animate 0.5s linear;
+        }
+    </style>
+</head>
+<body>
+<form id="form">
+    <div>
+        <label>Delay ms:</label>
+        <input type="number" name="sendDelay" value="1000" placeholder="Delay:">
+    </div>
+    <div>
+        <label>Num Channels:</label>
+        <input type="number" name="channels" value="2" placeholder="Num Channels:">
+    </div>
+    <div>
+        <label>Random messages send max:</label>
+        <input type="number" name="randSize" value="10" placeholder="Random messages send:">
+    </div>
+    <div>
+        <label>Fibonacci:</label>
+        <input type="number" name="fibonacci" value="0">
+    </div>
+    <div>
+        <label>Send start or stop:</label>
+        <input type="checkbox" name="sendEnable">
+    </div>
+    <div>
+        <label>Update channels:</label>
+        <input type="checkbox" name="reloadChannels" id="reload">
+    </div>
+    <div>
+        <label>Async enable:</label>
+        <input type="checkbox" name="updatePublish" id="async">
+    </div>
+    <div>
+        <button type="submit">submit</button>
+    </div>
+</form>
+<div class="channel-blocks" id="channels"></div>
+
+<script>
+    const form = document.getElementById('form');
+    const channels = document.getElementById('channels');
+    const builder = new BuilderElements();
+    let fibNum = 0;
+
+    const manager = new Manager(
+        new WebSocketClient(
+            'ws://' + location.host + '/live',
+            {reconnectEnabled: true, reconnectInterval: 5000}
+        ),
+        new PubSubPriority()
+    );
+
+    const settings = {
+        sendEnable: false,
+        sendDelay: 1000,
+        channels: 2,
+        randSize: 10
+    };
+
+    function sendSettings(settings) {
+        manager.websocket.sendObj({
+            sendEnable: settings.sendEnable,
+            sendDelay: settings.sendDelay,
+            channels: settings.channels,
+            randSize: settings.randSize
+        });
+    }
+
+    function fib(n) {
+        return n <= 1 ? n : fib(n - 1) + fib(n - 2);
+    }
+
+    function createChannels(numChannels) {
+        for (let i = 1; i <= numChannels; i++) {
+            let funObj = {
+                channel: null,
+                ['listen' + i]: function(msg) {
+                    if (fibNum > 0) {
+                        fib(fibNum);
+                    }
+
+                    builder.createReceive(
+                        funObj.channel,
+                        msg.context.test,
+                        builder.updateCounter(funObj.channel, 1)
+                    );
+                }
+            };
+
+            funObj.channel = 'channel-' + i;
+            builder.createChannel(channels, funObj.channel);
+            manager.subscribe(funObj.channel, funObj['listen' + i]);
+        }
+    }
+
+    createChannels(settings.channels);
+
+    manager.websocket.onOpen = () => {
+        form.addEventListener('submit', function (event) {
+            event.preventDefault();
+
+            const formData = new FormData(event.target);
+
+            settings.sendEnable = formData.has('sendEnable');
+            settings.sendDelay = formData.has('sendDelay') ? formData.get('sendDelay') : settings.sendDelay;
+            settings.channels = formData.has('channels') ? formData.get('channels') : settings.channels;
+            settings.randSize = formData.has('randSize') ? formData.get('randSize') : settings.randSize;
+            fibNum = formData.has('fibonacci') ? formData.get('fibonacci') : 0;
+            manager.async = formData.has('updatePublish');
+
+            if (formData.has('reloadChannels')) {
+                channels.innerHTML = '';
+                manager.pubSub.unsubscribeAll();
+                createChannels(settings.channels);
+                document.getElementById('reload').checked = false;
+            }
+
+            sendSettings(settings);
+        });
+    }
+
+    manager.websocket.onClose = (evt) => {
+        console.log(evt);
+    }
+
+    manager.websocket.onError = (evt) => {
+        console.log(evt);
+    }
+
+</script>
+</body>
+</html>

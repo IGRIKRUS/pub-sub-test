@@ -1,0 +1,21 @@
+version: '3.2'
+
+networks:
+  net:
+    driver: bridge
+
+services:
+  pub-sub-test:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+    build: ./
+    container_name: pub-sub-test
+    volumes:
+      - ./:/var/app:rw
+    networks:
+      - net
+    ports:
+      - 80:80
